@@ -34,6 +34,17 @@ REQUIRED = {
 }
 FORBIDDEN_SUFFIXES = {".pdf", ".doc", ".docx", ".odt", ".rtf"}
 TEXT_SUFFIXES = {"", ".md", ".txt", ".py", ".toml", ".yaml", ".yml", ".json", ".cff"}
+IGNORED_RUNTIME_PARTS = {
+    ".git",
+    ".cache",
+    ".pytest_cache",
+    ".hypothesis",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".tox",
+    ".nox",
+}
 DATASETS = (
     ROOT / "daten/rechenlaeufe/2026-08-31/v1.0.0",
     ROOT / "daten/rechenlaeufe/2026-08-31/v1.0.0-ksa",
@@ -42,6 +53,15 @@ DATASETS = (
 
 def digest(path: Path) -> str:
     return sha256(path.read_bytes()).hexdigest()
+
+
+def is_runtime_artifact(path: Path) -> bool:
+    parts = path.relative_to(ROOT).parts
+    return (
+        bool(IGNORED_RUNTIME_PARTS.intersection(parts))
+        or any(part.endswith(".egg-info") for part in parts)
+        or path.name.endswith((".pyc", ".pyo"))
+    )
 
 
 def validate_dataset(dataset: Path, errors: list[str]) -> None:
@@ -91,7 +111,7 @@ def main() -> int:
     if missing:
         errors.append("missing required files: " + ", ".join(missing))
 
-    all_paths = list(ROOT.rglob("*"))
+    all_paths = [path for path in ROOT.rglob("*") if not is_runtime_artifact(path)]
     symlinks = [path.relative_to(ROOT) for path in all_paths if path.is_symlink()]
     if symlinks:
         errors.append("symlinks are not permitted: " + ", ".join(map(str, symlinks)))

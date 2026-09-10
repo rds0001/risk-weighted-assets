@@ -15,7 +15,26 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "MANIFEST.sha256"
-EXCLUDED_PARTS = {".git", ".cache", ".pytest_cache", "__pycache__"}
+EXCLUDED_PARTS = {
+    ".git",
+    ".cache",
+    ".pytest_cache",
+    ".hypothesis",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".tox",
+    ".nox",
+}
+
+
+def is_runtime_artifact(path: Path) -> bool:
+    parts = path.relative_to(ROOT).parts
+    return (
+        bool(EXCLUDED_PARTS.intersection(parts))
+        or any(part.endswith(".egg-info") for part in parts)
+        or path.name.endswith((".pyc", ".pyo"))
+    )
 
 
 def included_files() -> list[Path]:
@@ -25,8 +44,7 @@ def included_files() -> list[Path]:
         if path.is_file()
         and not path.is_symlink()
         and path != MANIFEST
-        and not EXCLUDED_PARTS.intersection(path.relative_to(ROOT).parts)
-        and not path.name.endswith((".pyc", ".pyo"))
+        and not is_runtime_artifact(path)
     )
 
 
