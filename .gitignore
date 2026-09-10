@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.hypothesis/
+.cache/
+.coverage
+htmlcov/
+
+# Environments and editors
+.venv/
+venv/
+.idea/
+.vscode/
+*.swp
+*~
+
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Local runtime artifacts
+*.log
+*.tmp
+*.lock

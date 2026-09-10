@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rwa-engine"
+version = "1.0.0"
+description = "Institution-neutral CRR III, RWA, capital, IRRBB and ICAAP reference engine"
+requires-python = ">=3.10"
+authors = [
+  {name = "RiskDataScience GmbH", email = "riskdatascience@web.de"}
+]
+license = {text = "GPL-3.0-only"}
+dependencies = [
+  "numpy>=1.26,<3",
+  "openpyxl>=3.1,<4",
+  "pandas>=2.2,<3",
+  "PyYAML>=6,<7",
+  "XlsxWriter>=3.2,<4",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Office/Business :: Financial",
+]
+
+[project.optional-dependencies]
+test = [
+  "hypothesis>=6,<7",
+  "pytest>=8,<10",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "../Webapp"]
+cache_dir = "../.cache/pytest"
+addopts = "-q"
