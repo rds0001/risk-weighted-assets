@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from . import formulas as f
+from .supporting import resolve_for_exposure
 from .parameters import ParameterStore
 
 
@@ -102,12 +103,13 @@ def calculate_credit(t: Mapping[str,pd.DataFrame], ctx: CalculationContext, out:
         sub_rw=_num(r.get("substitution_rw",rw),rw)
         rwea_pre=ead*rw
         rwea_post=unprotected*rw+protected*sub_rw
-        sf=_num(r.get("supporting_factor",1),1)
+        support = resolve_for_exposure(t, r, p, approach="SA")
+        sf = support["supporting_factor"]
         rwea_final=rwea_post*sf
         rows.append({"exposure_id":r["exposure_id"],"approach":r["approach"],"exposure_class":r["exposure_class"],
                      "ead_on":ead_on,"ead_off":ead_off,"ccf":p.get("SA_CCF",str(r["annex_i_class"])),"ead":ead,
                      "risk_weight":rw,"protected_amount":protected,"substitution_rw":sub_rw,
-                     "rwea_pre_crm":rwea_pre,"rwea_post_crm":rwea_post,"supporting_factor":sf,"rwea":rwea_final,
+                     "rwea_pre_crm":rwea_pre,"rwea_post_crm":rwea_post,**support,"rwea_pre_supporting_factor":rwea_post,"supporting_factor_relief":rwea_post-rwea_final,"rwea":rwea_final,
                      "actual_rwea":rwea_final if r["approach"]=="KSA" else 0.0,"shadow_rwea":rwea_final,
                      "segments":str(segments),"formula_id":"SA_EAD/SA_RW","formula_version":ctx.formula_version})
     sa_result=pd.DataFrame(rows)
@@ -141,16 +143,33 @@ def calculate_credit(t: Mapping[str,pd.DataFrame], ctx: CalculationContext, out:
                 financial_multiplier=_bool(r["financial_multiplier_flag"]),params=p)
             k=f.irb_k(pdv,lgd,corr,_num(r["maturity_years"],1),apply_maturity_adjustment=not retail,
                       defaulted=defaulted,elbe=_num(r["elbe"]),params=p)
-            rw=p.get("RWA_MULTIPLIER","PILLAR1")*k; rwea=ead*rw; el_rate=_num(r["elbe"]) if defaulted else pdv*lgd
+            rw=p.get("RWA_MULTIPLIER","PILLAR1")*k
+            support = resolve_for_exposure(t, r, p, approach="IRB")
+            rwea_before = ead * rw
+            rwea = rwea_before * support["supporting_factor"]
+            el_rate=_num(r["elbe"]) if defaulted else pdv*lgd
             coverage=_num(r["specific_credit_adjustments"])+_num(r["general_credit_adjustments"])
             el=ead*el_rate
             irows.append({"exposure_id":r["exposure_id"],"irb_approach":r["irb_approach"],"subclass":subclass,
                           "ead":ead,"pd":pdv,"lgd":lgd,"r":corr,"m":_num(r["maturity_years"]),"k":k,"rw":rw,
-                          "rwea":rwea,"el_rate":el_rate,"el_amount":el,"coverage":coverage,
+                          **support,"rwea_pre_supporting_factor":rwea_before,"supporting_factor_relief":rwea_before-rwea,
+                          "effective_rw":rw*support["supporting_factor"],"rwea":rwea,"el_rate":el_rate,"el_amount":el,"coverage":coverage,
                           "irb_shortfall":max(el-coverage,0),"irb_excess":max(coverage-el,0),
                           "formula_id":"IRB_RETAIL_K" if retail else "IRB_CORP_K","formula_version":ctx.formula_version})
         irb_result=pd.DataFrame(irows)
-    out.results["IRB_Detail"]=irb_result
+    if irb_result.empty:
+        for field in ("sme_supporting_factor", "infrastructure_supporting_factor", "supporting_factor",
+                      "supporting_factor_type", "supporting_factor_status", "supporting_factor_reference",
+                      "supporting_factor_approved_by", "supporting_factor_formula_id",
+                      "rwea_pre_supporting_factor", "supporting_factor_relief", "effective_rw"):
+            irb_result[field] = pd.Series(dtype="object")
+    comparison = sa_result.set_index("exposure_id")["supporting_factor"].to_dict()
+    irb_result["sa_comparison_supporting_factor"] = irb_result["exposure_id"].map(comparison)
+    irb_result["supporting_factor_path_difference"] = (
+        (pd.to_numeric(irb_result["supporting_factor"]) -
+         pd.to_numeric(irb_result["sa_comparison_supporting_factor"])).abs() > 1e-10
+    )
+    out.results["IRB_Detail"] = irb_result
     out.metrics["RWEA_IRB"]=float(irb_result["rwea"].sum()) if not irb_result.empty else 0.0
     out.metrics["IRB_EL"]=float(irb_result["el_amount"].sum()) if not irb_result.empty else 0.0
     out.metrics["IRB_SHORTFALL"]=float(irb_result["irb_shortfall"].sum()) if not irb_result.empty else 0.0

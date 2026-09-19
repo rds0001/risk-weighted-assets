@@ -14,6 +14,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+from .supporting import IRB_SUPPORT_FIELDS, SUPPORT_FIELDS, normalise_support_columns, support_issues
 from .contracts import COMMON_COLUMNS, TABLE_SPECS, TableSpec, specs_for_workbook
 
 
@@ -114,15 +115,16 @@ def write_input_workbooks(directory: Path, tables: Mapping[str, pd.DataFrame]) -
             for logical_name,spec in specs.items():
                 for col in spec.all_columns:
                     dictionary.append({"logical_table":logical_name,"sheet":spec.sheet,"excel_table":spec.table_name,
-                                       "field":col,"required":col in spec.all_columns,"description":col.replace("_"," ")})
+                                       "field":col,"required": col not in (IRB_SUPPORT_FIELDS if logical_name == "irb_parameter" else SUPPORT_FIELDS if logical_name == "sa_classification" else {}),"description":col.replace("_"," ")})
             pd.DataFrame(dictionary).to_excel(writer,sheet_name="DATA_DICTIONARY",index=False)
             pd.DataFrame({"domain":["record_status","record_status","record_status","record_status","boolean","boolean"],
                           "value":["ACTIVE","PROVISIONAL","SIMULATED","CANCELLED","TRUE","FALSE"]}).to_excel(
                               writer,sheet_name="_LOOKUPS",index=False)
-            pd.DataFrame([{"template_version":"1.0.0","change_date":date.today(),
-                           "change":"Initialer kanonischer Datenvertrag"}]).to_excel(writer,sheet_name="CHANGELOG",index=False)
+            pd.DataFrame([{"template_version": "1.2.0","change_date":date.today(),
+                           "change":"Additive optionale Unterstützungsfaktoren für SA und IRB"}]).to_excel(writer,sheet_name="CHANGELOG",index=False)
             for logical_name, spec in specs.items():
                 frame = tables.get(logical_name, pd.DataFrame(columns=spec.all_columns)).copy()
+                frame = normalise_support_columns(frame, logical_name)
                 for col in spec.all_columns:
                     if col not in frame.columns:
                         frame[col] = None
@@ -146,6 +148,7 @@ def read_input_workbooks(directory: Path) -> tuple[dict[str, pd.DataFrame], list
         except ValueError as exc:
             issues.append(ValidationIssue("ERROR", "MISSING_SHEET", logical_name, "", "", str(exc)))
             continue
+        frame = normalise_support_columns(frame, logical_name)
         missing = [c for c in spec.all_columns if c not in frame.columns]
         if missing:
             issues.append(ValidationIssue("ERROR", "MISSING_COLUMNS", logical_name, "", ",".join(missing),
@@ -293,6 +296,7 @@ def validate_tables(tables: Mapping[str, pd.DataFrame]) -> list[ValidationIssue]
             issues.append(ValidationIssue("ERROR","MISSING_CURVATURE_REVALUATION","market_sensitivity",
                                           str(sensitivities.at[index,"record_id"]),"curvature_up,curvature_down",
                                           "Curvature verlangt Up- und Down-Revaluation"))
+    issues.extend(ValidationIssue(*issue) for issue in support_issues(tables))
     return issues
 
 
