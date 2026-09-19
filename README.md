@@ -1,5 +1,7 @@
 # Risk-Weighted Assets Reference Engine
 
+Version 1.2.0: [SME/infrastructure supporting factors, eligibility inputs and audit outputs](docs/SUPPORTING_FACTORS.md).
+
 [![CI](https://github.com/rds0001/risk-weighted-assets/actions/workflows/ci.yml/badge.svg)](https://github.com/rds0001/risk-weighted-assets/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 

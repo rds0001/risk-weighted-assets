@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 from threading import Thread
 from urllib.error import HTTPError
@@ -35,8 +36,11 @@ def test_catalog_rejects_path_traversal(identifier):
 
 
 @pytest.fixture
-def web_server():
-    server = RwaWebServer(("127.0.0.1", 0), DATA_ROOT)
+def web_server(tmp_path):
+    # HTTP run tests must never create extra runs in published reference datasets.
+    data_root = tmp_path / "datasets"
+    shutil.copytree(DATA_ROOT, data_root)
+    server = RwaWebServer(("127.0.0.1", 0), data_root)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

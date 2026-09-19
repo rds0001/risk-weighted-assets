@@ -7,6 +7,8 @@ werden in die Excel-Parametertabelle materialisiert.
 """
 from __future__ import annotations
 
+from .supporting import normalise_support_columns
+
 from datetime import date, datetime, timezone
 from hashlib import sha256
 from functools import lru_cache
@@ -152,6 +154,7 @@ def generate_synthetic_tables(*, as_of: date | None = None, seed: int | None = N
     _shift_temporal_columns(tables, profile, target_as_of)
     _materialize_rules(tables, profile, target_as_of)
     _update_run_control(tables, as_of=target_as_of, seed=effective_seed, profile_id=bank_profile)
+    tables = {name: normalise_support_columns(frame, name) for name, frame in tables.items()}
     _apply_transformations(tables, profile)
     errors = [issue for issue in validate_tables(tables) if issue.severity == "ERROR"]
     if errors:
